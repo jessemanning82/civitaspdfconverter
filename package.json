@@ -1,0 +1,35 @@
+{
+  "name": "civitas-pdf-converter",
+  "version": "1.0.0",
+  "description": "A web application that converts PDF forms into interactive web forms using AI analysis",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jessemanning82/civitaspdfconverter.git"
+  },
+  "keywords": [
+    "pdf",
+    "form",
+    "converter",
+    "ai",
+    "openai",
+    "web-form"
+  ],
+  "author": "Jesse Manning",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jessemanning82/civitaspdfconverter/issues"
+  },
+  "homepage": "https://github.com/jessemanning82/civitaspdfconverter#readme",
+  "dependencies": {
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.28.0",
+    "pdf-parse": "^1.1.1",
+    "canvas": "^2.11.2"
+  }
+}

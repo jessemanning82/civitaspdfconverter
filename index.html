@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIVITAS PDF Viewer</title>
+    <!-- PDF.js dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        var pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    <!-- jQuery -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <!-- PDF Viewer -->
+    <script src="https://cdn.jsdelivr.net/gh/dealfonso/pdfjs-viewer@2.0/dist/pdfjs-viewer.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/dealfonso/pdfjs-viewer@2.0/dist/pdfjs-viewer.min.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+        }
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .upload-section {
+            padding: 1rem;
+            text-align: center;
+            background-color: #f5f6fa;
+            border-bottom: 1px solid #ddd;
+        }
+        .viewer-container {
+            width: 45%;
+            height: 650px;
+            margin: 2rem;
+            padding: 1rem;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        .pdfjs-viewer {
+            height: 100%;
+            border: 2px dashed #ddd;
+            background-color: #f5f6fa;
+            overflow: auto;
+            border-radius: 4px;
+            transition: border-color 0.3s;
+        }
+        .pdfjs-viewer.drag-over {
+            border-color: #3498db;
+        }
+        .placeholder-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #666;
+            text-align: center;
+            pointer-events: none;
+            width: 80%;
+        }
+        .placeholder-text i {
+            display: block;
+            font-size: 3em;
+            margin-bottom: 1rem;
+            color: #999;
+        }
+        #file-upload {
+            display: none;
+        }
+        .upload-btn {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .upload-btn:hover {
+            background-color: #2980b9;
+        }
+        
+        /* Loading animation container */
+        .loading-container {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        
+        /* Starburst animation */
+        .starburst {
+            width: 48px;
+            height: 48px;
+            position: relative;
+            display: inline-block;
+            animation: starburst-rotate 1s linear infinite;
+        }
+        
+        .starburst::before,
+        .starburst::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            border-top-color: #007AFF;
+            border-bottom-color: #007AFF;
+            transform: translate(-50%, -50%);
+        }
+        
+        .starburst::before {
+            animation: starburst-inner 1s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+        }
+        
+        .starburst::after {
+            animation: starburst-outer 1s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+            opacity: 0.5;
+        }
+        
+        @keyframes starburst-rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes starburst-inner {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        
+        @keyframes starburst-outer {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(-360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 16px;
+            font-size: 16px;
+            color: #007AFF;
+            font-weight: 500;
+        }
+
+        /* Main content layout */
+        .content-container {
+            display: flex;
+            justify-content: space-between;
+            padding: 2rem;
+            gap: 2rem;
+        }
+
+        /* Update viewer container for new layout */
+        .viewer-container {
+            flex: 1;
+            min-width: 0; /* Prevent flex item overflow */
+            margin: 0;
+        }
+
+        /* Form container */
+        .form-container {
+            flex: 1;
+            min-width: 0;
+            height: 650px;
+            padding: 1.5rem;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+
+        /* Form styles */
+        .dynamic-form {
+            display: none;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        .form-group input[type="text"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input[type="text"]:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+
+        .form-group input[type="checkbox"] {
+            margin-right: 0.5rem;
+        }
+
+        .checkbox-group {
+            margin-top: 0.5rem;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-size: 14px;
+            color: #2c3e50;
+        }
+
+        .required-field label::after {
+            content: " *";
+            color: #e74c3c;
+        }
+
+        .form-section {
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .form-section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 1rem;
+        }
+
+        /* Add CSS for new form elements */
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .radio-label,
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-size: 14px;
+            color: #2c3e50;
+        }
+
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            background-color: white;
+        }
+
+        .form-group select:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+
+        .form-group input[type="date"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input[type="date"]:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>CIVITAS PDF Viewer</h1>
+    </div>
+    
+    <!-- Add loading animation container -->
+    <div class="loading-container">
+        <div class="starburst"></div>
+        <div class="loading-text">Analyzing PDF...</div>
+    </div>
+    
+    <div class="upload-section">
+        <input type="file" id="file-upload" accept=".pdf" />
+        <button class="upload-btn" onclick="document.getElementById('file-upload').click()">Upload PDF</button>
+    </div>
+
+    <div class="content-container">
+        <div class="viewer-container">
+            <div class="pdfjs-viewer"></div>
+            <div class="placeholder-text">
+                <i>📄</i>
+                Drop your PDF here<br>
+                or use the upload button above
+            </div>
+        </div>
+        <div class="form-container">
+            <div class="dynamic-form"></div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize the PDF viewer
+        let pdfViewer = new PDFjsViewer($('.pdfjs-viewer'), {
+            // Set initial zoom to fit the container width
+            zoomFillArea: 1,
+        });
+
+        const viewerContainer = document.querySelector('.pdfjs-viewer');
+        const placeholder = document.querySelector('.placeholder-text');
+
+        // Function to show/hide loading animation
+        function toggleLoading(show) {
+            const loadingContainer = document.querySelector('.loading-container');
+            loadingContainer.style.display = show ? 'flex' : 'none';
+        }
+
+        // Function to create form fields
+        function createFormField(field) {
+            const formGroup = document.createElement('div');
+            formGroup.className = `form-group ${field.required ? 'required-field' : ''}`;
+            
+            const label = document.createElement('label');
+            label.textContent = field.label;
+            formGroup.appendChild(label);
+
+            let input;
+            
+            switch(field.type.toLowerCase()) {
+                case 'checkbox':
+                    input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.id = field.id;
+                    input.name = field.id;
+                    const checkboxLabel = document.createElement('label');
+                    checkboxLabel.className = 'checkbox-label';
+                    checkboxLabel.appendChild(input);
+                    checkboxLabel.appendChild(document.createTextNode(field.label));
+                    formGroup.appendChild(checkboxLabel);
+                    break;
+
+                case 'radio':
+                case 'radio button':
+                    input = document.createElement('input');
+                    input.type = 'radio';
+                    input.id = field.id;
+                    input.name = field.group || field.id;
+                    const radioLabel = document.createElement('label');
+                    radioLabel.className = 'radio-label';
+                    radioLabel.appendChild(input);
+                    radioLabel.appendChild(document.createTextNode(field.label));
+                    formGroup.appendChild(radioLabel);
+                    break;
+
+                case 'select':
+                case 'dropdown':
+                    input = document.createElement('select');
+                    input.id = field.id;
+                    input.name = field.id;
+                    if (field.options) {
+                        field.options.forEach(option => {
+                            const optionElement = document.createElement('option');
+                            optionElement.value = option.value || option;
+                            optionElement.textContent = option.label || option;
+                            input.appendChild(optionElement);
+                        });
+                    }
+                    formGroup.appendChild(input);
+                    break;
+
+                case 'date':
+                    input = document.createElement('input');
+                    input.type = 'date';
+                    input.id = field.id;
+                    input.name = field.id;
+                    formGroup.appendChild(input);
+                    break;
+
+                default: // text, email, tel, etc.
+                    input = document.createElement('input');
+                    input.type = field.type === 'text input' ? 'text' : field.type;
+                    input.id = field.id;
+                    input.name = field.id;
+                    
+                    if (field.placeholder) {
+                        input.placeholder = field.placeholder;
+                    }
+                    
+                    if (field.format) {
+                        input.placeholder = input.placeholder || field.format;
+                    }
+                    
+                    if (field.validation) {
+                        if (field.validation.pattern) {
+                            input.pattern = field.validation.pattern;
+                        }
+                        if (field.validation.min !== undefined) {
+                            input.min = field.validation.min;
+                        }
+                        if (field.validation.max !== undefined) {
+                            input.max = field.validation.max;
+                        }
+                    }
+                    
+                    formGroup.appendChild(input);
+            }
+
+            // Add help text if format is specified
+            if (field.format && !['checkbox', 'radio', 'select', 'dropdown'].includes(field.type.toLowerCase())) {
+                const helpText = document.createElement('div');
+                helpText.className = 'help-text';
+                helpText.textContent = `Format: ${field.format}`;
+                formGroup.appendChild(helpText);
+            }
+
+            return formGroup;
+        }
+
+        // Function to generate form from analysis
+        function generateForm(analysis) {
+            const formData = JSON.parse(analysis);
+            const formContainer = document.querySelector('.dynamic-form');
+            formContainer.innerHTML = ''; // Clear existing content
+            
+            // Group fields by their groups
+            const groupedFields = {};
+            formData.fields.forEach(field => {
+                const groupName = field.group || 'default';
+                if (!groupedFields[groupName]) {
+                    groupedFields[groupName] = [];
+                }
+                groupedFields[groupName].push(field);
+            });
+
+            // Create form sections for each group
+            Object.entries(groupedFields).forEach(([groupName, fields]) => {
+                if (groupName !== 'default') {
+                    const section = document.createElement('div');
+                    section.className = 'form-section';
+                    
+                    const title = document.createElement('div');
+                    title.className = 'form-section-title';
+                    title.textContent = groupName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    section.appendChild(title);
+                    
+                    fields.forEach(field => {
+                        section.appendChild(createFormField(field));
+                    });
+                    
+                    formContainer.appendChild(section);
+                }
+            });
+
+            // Add ungrouped fields
+            if (groupedFields.default) {
+                groupedFields.default.forEach(field => {
+                    formContainer.appendChild(createFormField(field));
+                });
+            }
+
+            formContainer.style.display = 'block';
+        }
+
+        // Function to analyze PDF with OpenAI
+        async function analyzePDFWithAI(formData) {
+            try {
+                console.log('Sending PDF for analysis...');
+                toggleLoading(true);
+                
+                const response = await fetch('/analyze-pdf', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const responseData = await response.json();
+                
+                if (!response.ok) {
+                    console.error('Server error:', responseData);
+                    throw new Error(responseData.error || responseData.details || 'Failed to analyze PDF');
+                }
+
+                console.log('PDF Analysis:', responseData.analysis);
+                generateForm(responseData.analysis);
+                return responseData.analysis;
+            } catch (error) {
+                console.error('Error details:', error);
+                alert('Failed to analyze the PDF: ' + error.message);
+                throw error;
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        // Handle file upload
+        function handleFile(file) {
+            if (file && file.type === 'application/pdf') {
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    // Create two separate ArrayBuffers
+                    const apiBuffer = e.target.result.slice(0);
+                    const viewerBuffer = e.target.result.slice(0);
+                    
+                    try {
+                        // Send for analysis
+                        const formData = new FormData();
+                        const apiBlob = new Blob([apiBuffer], { type: 'application/pdf' });
+                        formData.append('pdf', apiBlob);
+                        await analyzePDFWithAI(formData);
+                        
+                        // Display in viewer
+                        pdfViewer.loadDocument(viewerBuffer).then(() => {
+                            pdfViewer.setZoom('width');
+                            placeholder.style.display = 'none';
+                        });
+                    } catch (error) {
+                        console.error('Error processing PDF:', error);
+                        alert('Error processing PDF. Please try again.');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                alert('Please upload a PDF file.');
+            }
+        }
+
+        // Handle file input change
+        document.getElementById('file-upload').addEventListener('change', function(e) {
+            handleFile(e.target.files[0]);
+        });
+
+        // Handle drag and drop
+        viewerContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            viewerContainer.classList.add('drag-over');
+        });
+
+        viewerContainer.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            viewerContainer.classList.remove('drag-over');
+        });
+
+        viewerContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            viewerContainer.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            handleFile(file);
+        });
+    </script>
+</body>
+</html> 
